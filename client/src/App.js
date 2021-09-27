@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { ethers } from "ethers";
 import MyEpicNFT from "./MyEpicNFT.json";
 
-// Constants
+
 const TWITTER_HANDLE = '_buildspace';
 const TWITTER_LINK = `https://twitter.com/${TWITTER_HANDLE}`;
 const TOTAL_MINT_COUNT = 50;
@@ -13,22 +13,23 @@ const RINKEBY_ID = "0x4";
 const CONTRACT_ADDRESS = "0x6b83553fbf4D05ee24d3815Bf2B2eBC4c28f8F0D";
 const OPENSEA_LINK = `https://testnets.opensea.io/assets/${CONTRACT_ADDRESS}/`;
 
-const App = () => {
-  const [connection, setConnection] = useState([]);
-  const [able, authorized, network] = connection;
+
+function App() {
+  const [status, setStatus] = useState([]);
+  const [able, authorized, network] = status;
 
   async function checkConnection() {
     if (!ETH) {
-      setConnection([false]);
+      setStatus([false]);
       return;
     }
     let accounts = await ETH.request({ method: "eth_accounts" });
     if (!accounts.length) {
-      setConnection([true, false]);
+      setStatus([true, false]);
     }
     else {
       let chain = await ETH.request({ method: "eth_chainId" });
-      setConnection([true, true, chain]);
+      setStatus([true, true, chain]);
     }
   }
 
@@ -37,7 +38,7 @@ const App = () => {
       try {
         await ETH.request({ method: "eth_requestAccounts" });
         let chain = await ETH.request({ method: "eth_chainId" });
-        setConnection([true, true, chain]);
+        setStatus([true, true, chain]);
       }
       catch (e) {
         console.error(e);
@@ -57,8 +58,11 @@ const App = () => {
         try {
           let txn = await contract.makeAnEpicNFT();
           let receipt = await txn.wait();
-          console.info("NFT minted!", `https://rinkeby.etherscan.io/tx/${txn.hash}`);
-          return receipt.events[0].args.tokenId.toNumber();
+          for (let emitted of receipt.events) {
+            if (emitted.event === "NewEpicNFTMinted") {
+              return emitted.args.tokenId.toNumber();
+            }
+          }
         }
         catch (e) {
           console.error(e);
@@ -93,14 +97,14 @@ const App = () => {
           <p className="sub-text">
             Each unique. Each beautiful. Discover your NFT today.
           </p>
-          {!connection.length ? null : !able ? (
+          {!status.length ? null : !able ? (
             <NoMetaMask />
           ) : !authorized ? (
             <NotConnected connect={connect} />
           ) : network !== RINKEBY_ID ? (
             <WrongNetwork />
           ) : (
-            <MintUI api={api} />
+            <MintClient api={api} />
           )}
         </div>
         <div className="footer-container">
@@ -109,19 +113,23 @@ const App = () => {
             className="footer-text"
             href={TWITTER_LINK}
             target="_blank"
-            rel="noreferrer"
-          >{`built on @${TWITTER_HANDLE}`}</a>
+            rel="noopener noreferrer"
+          >
+            built on @{TWITTER_HANDLE}
+          </a>
         </div>
       </div>
     </div>
   );
 };
 
+
 function NoMetaMask() {
   return (
     <h4>Please install <strong>MetaMask</strong> to proceed</h4>
   );
 }
+
 
 function WrongNetwork() {
   return (
@@ -132,6 +140,7 @@ function WrongNetwork() {
   );
 }
 
+
 function NotConnected({ connect }) {
   return (
     <button className="cta-button connect-wallet-button" onClick={connect}>
@@ -140,19 +149,22 @@ function NotConnected({ connect }) {
   );
 }
 
-function MintUI({ api: { mint, count } }) {
+
+function MintClient({ api: { mint, count } }) {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState();
   const [remaining, setRemaining] = useState(-1);
   const starting = remaining === -1;
   const cardinality = remaining === 1 ? "token" : "tokens";
-  const qualified = remaining < 10 ? `Only ${remaining}` : "" + remaining;
+  const availability = remaining < 10 ?
+    `Only ${remaining} ${cardinality} left!` :
+    `${remaining} ${cardinality} left`;
 
   async function action() {
     setBusy(true);
     let tokenId = await mint();
     if (tokenId !== undefined) {
-      setRemaining((n) => n - 1);
+      setRemaining(remaining - 1);
       setUrl(OPENSEA_LINK + tokenId);
     }
     else {
@@ -167,25 +179,33 @@ function MintUI({ api: { mint, count } }) {
     }
   }, [starting, count]);
 
-  return (<>
-    <button onClick={action} className="cta-button connect-wallet-button" disabled={busy || remaining < 1}>
-      {busy ? "minting..." : "Mint NFT"}
-    </button>
-    {remaining > 0 ? (
-      <section className="standfirst">
-        <h1>Hurry while supplies last!</h1>
-        <p>{qualified} {cardinality} remaining</p>
-      </section>
-    ) : remaining === 0 ? (
-      <h1>We ran out of tokens! Sorry!</h1>
-    ) : null}
-    {url ? (
-      <section className="result">
-        <h1>NFT Minted!</h1>
-        <p>Check it out at <a target="_blank" rel="noopener noreferrer" href={url}>OpenSea</a>.</p>
-      </section>
-    ) : null}
-  </>);
+  return (
+    <>
+      <button
+        onClick={action}
+        className="cta-button connect-wallet-button"
+        disabled={busy || remaining < 1}
+      >
+        {busy ? "Minting..." : "Mint NFT"}
+      </button>
+      {remaining > 0 ? (
+        <section className="lead">
+          <h1>Hurry while supplies last!</h1>
+          <p>{availability}</p>
+        </section>
+      ) : remaining === 0 ? (
+        <h1 className="lead">We ran out of tokens! Sorry!</h1>
+      ) : null}
+      {url ? (
+        <section className="result">
+          <h1>NFT Minted!</h1>
+          <p>
+            Check it out at <a target="_blank" rel="noopener noreferrer" href={url}>OpenSea</a>.
+          </p>
+        </section>
+      ) : null}
+    </>
+  );
 }
 
 export default App;
