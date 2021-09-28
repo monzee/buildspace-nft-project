@@ -10,26 +10,27 @@ const TWITTER_LINK = `https://twitter.com/${TWITTER_HANDLE}`;
 const TOTAL_MINT_COUNT = 50;
 const ETH = window.ethereum;
 const RINKEBY_ID = "0x4";
+const USER_DENIED = 4001;
 const CONTRACT_ADDRESS = "0x6b83553fbf4D05ee24d3815Bf2B2eBC4c28f8F0D";
 const OPENSEA_LINK = `https://testnets.opensea.io/assets/${CONTRACT_ADDRESS}/`;
 
 
 function App() {
-  const [status, setStatus] = useState([]);
-  const [able, authorized, network] = status;
+  const [state, setState] = useState([]);
+  const [able, authorized, network] = state;
 
   async function checkConnection() {
     if (!ETH) {
-      setStatus([false]);
+      setState([false]);
       return;
     }
     let accounts = await ETH.request({ method: "eth_accounts" });
     if (!accounts.length) {
-      setStatus([true, false]);
+      setState([true, false]);
     }
     else {
       let chain = await ETH.request({ method: "eth_chainId" });
-      setStatus([true, true, chain]);
+      setState([true, true, chain]);
     }
   }
 
@@ -38,7 +39,7 @@ function App() {
       try {
         await ETH.request({ method: "eth_requestAccounts" });
         let chain = await ETH.request({ method: "eth_chainId" });
-        setStatus([true, true, chain]);
+        setState([true, true, chain]);
       }
       catch (e) {
         console.error(e);
@@ -58,14 +59,17 @@ function App() {
         try {
           let txn = await contract.makeAnEpicNFT();
           let receipt = await txn.wait();
-          for (let emitted of receipt.events) {
-            if (emitted.event === "NewEpicNFTMinted") {
-              return emitted.args.tokenId.toNumber();
+          for (let { event, args } of receipt.events) {
+            if (event === "NewEpicNFTMinted") {
+              return args.tokenId.toNumber();
             }
           }
         }
         catch (e) {
           console.error(e);
+          if (e.code !== USER_DENIED) {
+            checkConnection();
+          }
         }
       },
 
@@ -75,8 +79,14 @@ function App() {
         }
         catch (e) {
           console.error(e);
+          checkConnection();
           return 0;
         }
+      },
+
+      onNewMint(accept) {
+        contract.on("NewEpicNFTMinted", accept);
+        return () => contract.removeListener("NewEpicNFTMinted", accept);
       },
     };
   }, [able, authorized, network]);
@@ -97,7 +107,7 @@ function App() {
           <p className="sub-text">
             Each unique. Each beautiful. Discover your NFT today.
           </p>
-          {!status.length ? null : !able ? (
+          {!state.length ? null : !able ? (
             <NoMetaMask />
           ) : !authorized ? (
             <NotConnected connect={connect} />
@@ -150,34 +160,29 @@ function NotConnected({ connect }) {
 }
 
 
-function MintClient({ api: { mint, count } }) {
+function MintClient({ api }) {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState();
   const [remaining, setRemaining] = useState(-1);
   const starting = remaining === -1;
-  const cardinality = remaining === 1 ? "token" : "tokens";
+  const units = remaining === 1 ? "token" : "tokens";
   const availability = remaining < 10 ?
-    `Only ${remaining} ${cardinality} left!` :
-    `${remaining} ${cardinality} left`;
+    `Only ${remaining} ${units} left!` :
+    `${remaining} ${units} left`;
 
   async function action() {
     setBusy(true);
-    let tokenId = await mint();
-    if (tokenId !== undefined) {
-      setRemaining(remaining - 1);
-      setUrl(OPENSEA_LINK + tokenId);
-    }
-    else {
-      setUrl(undefined);
-    }
+    let tokenId = await api.mint();
+    setUrl(tokenId === undefined ? undefined : (OPENSEA_LINK + tokenId));
     setBusy(false);
   }
 
   useEffect(() => {
     if (starting) {
-      count().then((minted) => setRemaining(TOTAL_MINT_COUNT - minted));
+      api.count().then((minted) => setRemaining(TOTAL_MINT_COUNT - minted));
     }
-  }, [starting, count]);
+    return api.onNewMint(() => setRemaining((n) => n - 1));
+  }, [starting, api]);
 
   return (
     <>
