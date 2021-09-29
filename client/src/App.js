@@ -164,7 +164,6 @@ function MintClient({ api }) {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState();
   const [remaining, setRemaining] = useState(-1);
-  const starting = remaining === -1;
   const units = remaining === 1 ? "token" : "tokens";
   const availability = remaining < 10 ?
     `Only ${remaining} ${units} left!` :
@@ -178,11 +177,9 @@ function MintClient({ api }) {
   }
 
   useEffect(() => {
-    if (starting) {
-      api.count().then((minted) => setRemaining(TOTAL_MINT_COUNT - minted));
-    }
+    api.count().then((minted) => setRemaining(TOTAL_MINT_COUNT - minted));
     return api.onNewMint(() => setRemaining((n) => n - 1));
-  }, [starting, api]);
+  }, [api]);
 
   return (
     <>
@@ -212,5 +209,6 @@ function MintClient({ api }) {
     </>
   );
 }
+
 
 export default App;
