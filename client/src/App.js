@@ -1,10 +1,13 @@
 import './styles/App.css';
 import twitterLogo from './assets/twitter-logo.svg';
-import React, { useEffect, useState, useMemo } from "react";
+import githubMark from "./assets/GitHub-Mark-Light-64px.png";
+import React, { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ethers } from "ethers";
 import MyEpicNFT from "./MyEpicNFT.json";
 
 
+const GITHUB_LINK = "https://github.com/monzee/buildspace-nft-project";
 const TWITTER_HANDLE = '_buildspace';
 const TWITTER_LINK = `https://twitter.com/${TWITTER_HANDLE}`;
 const TOTAL_MINT_COUNT = 50;
@@ -18,6 +21,7 @@ const OPENSEA_LINK = `https://testnets.opensea.io/assets/${CONTRACT_ADDRESS}/`;
 function App() {
   const [state, setState] = useState([]);
   const [able, authorized, network] = state;
+  const mainNode = useRef();
 
   async function checkConnection() {
     if (!ETH) {
@@ -105,7 +109,9 @@ function App() {
         <div className="header-container">
           <p className="header gradient-text">My NFT Collection</p>
           <p className="sub-text">
-            Each unique. Each beautiful. Discover your NFT today.
+            <a href={GITHUB_LINK} target="_blank" rel="noopener noreferrer">
+              <img src={githubMark} alt="GitHub mark" /> Check out the source.
+            </a>
           </p>
           {!state.length ? null : !able ? (
             <NoMetaMask />
@@ -114,9 +120,10 @@ function App() {
           ) : network !== RINKEBY_ID ? (
             <WrongNetwork />
           ) : (
-            <MintClient api={api} />
+            <MintClient api={api} slot={mainNode} />
           )}
         </div>
+        <main ref={mainNode}></main>
         <div className="footer-container">
           <img alt="Twitter Logo" className="twitter-logo" src={twitterLogo} />
           <a
@@ -143,7 +150,7 @@ function NoMetaMask() {
 
 function WrongNetwork() {
   return (
-    <section className="sub-text">
+    <section>
       <h1>⚠️ Wrong network!</h1>
       <p>Please switch to the <strong>Rinkeby</strong> testnet to proceed</p>
     </section>
@@ -160,7 +167,7 @@ function NotConnected({ connect }) {
 }
 
 
-function MintClient({ api }) {
+function MintClient({ api, slot }) {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState();
   const [remaining, setRemaining] = useState(-1);
@@ -171,6 +178,7 @@ function MintClient({ api }) {
 
   async function action() {
     setBusy(true);
+    setUrl(null);
     let tokenId = await api.mint();
     setUrl(tokenId === undefined ? undefined : (OPENSEA_LINK + tokenId));
     setBusy(false);
@@ -191,21 +199,22 @@ function MintClient({ api }) {
         {busy ? "Minting..." : "Mint NFT"}
       </button>
       {remaining > 0 ? (
-        <section className="lead">
+        <section>
           <h1>Hurry while supplies last!</h1>
           <p>{availability}</p>
         </section>
       ) : remaining === 0 ? (
-        <h1 className="lead">We ran out of tokens! Sorry!</h1>
+        <h1>We ran out of tokens! Sorry!</h1>
       ) : null}
-      {url ? (
+      {url && createPortal(
         <section className="result">
           <h1>NFT Minted!</h1>
           <p>
             Check it out at <a target="_blank" rel="noopener noreferrer" href={url}>OpenSea</a>.
           </p>
-        </section>
-      ) : null}
+        </section>,
+        slot.current
+      )}
     </>
   );
 }

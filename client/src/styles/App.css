@@ -1,6 +1,7 @@
 .App {
   height: 100vh;
   background-color: #0d1116;
+  color: #fff;
   overflow: scroll;
   text-align: center;
 }
@@ -124,12 +125,11 @@
   }
 }
 
-.lead, .result {
-  color: #fff;
-}
-
-.result a {
-  color: #fce;
+a {
+  color: #fbe;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 button[disabled] {
